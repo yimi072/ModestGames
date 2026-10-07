@@ -23,8 +23,26 @@ async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: s
         await Stealth().apply_stealth_async(page)
         
         purchase_url = f"https://store.epicgames.com/purchase?highlightColor=0078f2&lang=en-US&offers=1-{namespace}-{offer_id}--&showNavigation=true"
-        
+
+        async def snap(tag: str):
+            """Save a debug screenshot (uploaded as Actions artifact)."""
+            try:
+                await page.screenshot(path=f"debug-screenshots/{slug}-{tag}.png")
+            except Exception:
+                pass
+
         try:
+            # Warm up like a real user: homepage -> free games -> purchase.
+            # This builds a natural navigation chain and lets any Cloudflare
+            # clearance settle before the purchase page loads.
+            for warm_url in ("https://store.epicgames.com/",
+                             "https://store.epicgames.com/free-games"):
+                try:
+                    await page.goto(warm_url, wait_until="domcontentloaded", timeout=45000)
+                    await asyncio.sleep(3)
+                except Exception as e:
+                    print(f"Warm-up navigation to {warm_url} had issues: {type(e).__name__}")
+
             # The purchase page is a heavy SPA (analytics, streaming connections);
             # "networkidle" often never fires. Load DOM then poll for known states.
             await page.goto(purchase_url, wait_until="domcontentloaded", timeout=60000)
@@ -35,6 +53,8 @@ async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: s
 
                 # Check for captcha
                 if await page.locator(".h-captcha").count() > 0 or await page.locator("iframe[src*='hcaptcha']").count() > 0:
+                    print(f"Captcha detected; title={await page.title()!r} url={page.url}")
+                    await snap("captcha")
                     updated_cookies = await context.cookies()
                     return updated_cookies, "needs_captcha"
 
@@ -64,7 +84,8 @@ async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: s
                         pass
 
             # Timeout waiting for a recognizable state
-            print(f"Timed out waiting for order state on {slug}; url={page.url}")
+            print(f"Timed out waiting for order state on {slug}; title={await page.title()!r} url={page.url}")
+            await snap("timeout")
             updated_cookies = await context.cookies()
             return updated_cookies, "failed"
             
