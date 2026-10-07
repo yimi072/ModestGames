@@ -3,7 +3,15 @@ from playwright.async_api import async_playwright, Page
 
 async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: str) -> tuple[list[dict], str]:
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # Prefer the runner's real Google Chrome over bundled Chromium: its
+        # fingerprint is far less likely to trip Cloudflare's bot challenge.
+        # ubuntu-latest runners preinstall Chrome; fall back if unavailable.
+        launch_args = ["--disable-blink-features=AutomationControlled"]
+        try:
+            browser = await p.chromium.launch(channel="chrome", headless=True, args=launch_args)
+        except Exception as e:
+            print(f"Real Chrome unavailable ({e}); falling back to bundled Chromium")
+            browser = await p.chromium.launch(headless=True, args=launch_args)
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 720}
