@@ -1,5 +1,6 @@
 import asyncio
 from playwright.async_api import async_playwright, Page
+from playwright_stealth import stealth_async
 
 async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: str) -> tuple[list[dict], str]:
     async with async_playwright() as p:
@@ -8,16 +9,18 @@ async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: s
         # ubuntu-latest runners preinstall Chrome; fall back if unavailable.
         launch_args = ["--disable-blink-features=AutomationControlled"]
         try:
-            browser = await p.chromium.launch(channel="chrome", headless=True, args=launch_args)
+            browser = await p.chromium.launch(channel="chrome", headless=False, args=launch_args)
         except Exception as e:
             print(f"Real Chrome unavailable ({e}); falling back to bundled Chromium")
-            browser = await p.chromium.launch(headless=True, args=launch_args)
+            browser = await p.chromium.launch(headless=False, args=launch_args)
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 720}
         )
         await context.add_cookies(cookies)
         page = await context.new_page()
+        # Mask automation fingerprints (navigator.webdriver, plugins, etc.)
+        await stealth_async(page)
         
         purchase_url = f"https://store.epicgames.com/purchase?highlightColor=0078f2&lang=en-US&offers=1-{namespace}-{offer_id}--&showNavigation=true"
         
