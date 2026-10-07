@@ -44,3 +44,11 @@ jobs:
           git add claimed.json || true
           git diff --cached --quiet || git commit -m "chore: update claimed games state"
           git push || true
+
+      - name: Upload debug screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: debug-screenshots/
+          if-no-files-found: ignore
