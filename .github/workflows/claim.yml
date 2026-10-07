@@ -33,7 +33,9 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
-        run: python -m claimer
+        # Headed browser under Xvfb: much harder for bot detection to flag
+        # than headless mode. xvfb is preinstalled on ubuntu-latest runners.
+        run: xvfb-run -a python -m claimer
 
       - name: Commit state
         run: |
