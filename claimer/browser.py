@@ -1,6 +1,6 @@
 import asyncio
 from playwright.async_api import async_playwright, Page
-from playwright_stealth import stealth_async
+from playwright_stealth import Stealth
 
 async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: str) -> tuple[list[dict], str]:
     async with async_playwright() as p:
@@ -20,7 +20,7 @@ async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: s
         await context.add_cookies(cookies)
         page = await context.new_page()
         # Mask automation fingerprints (navigator.webdriver, plugins, etc.)
-        await stealth_async(page)
+        await Stealth().apply_stealth_async(page)
         
         purchase_url = f"https://store.epicgames.com/purchase?highlightColor=0078f2&lang=en-US&offers=1-{namespace}-{offer_id}--&showNavigation=true"
         
