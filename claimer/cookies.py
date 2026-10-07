@@ -27,10 +27,20 @@ def validate_cookies(cookies: list[dict]) -> bool:
         if "epicgames.com" in cookie.get("domain", ""):
             cookie_jar.set(cookie["name"], cookie["value"], domain=cookie["domain"])
             
-    with httpx.Client(cookies=cookie_jar, timeout=10.0) as client:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    with httpx.Client(cookies=cookie_jar, timeout=10.0, headers=headers) as client:
         try:
             response = client.get(url, params={"count": 1, "start": 0})
             if response.status_code == 200:
+                return True
+            # Cloudflare serves a JS challenge to datacenter IPs (e.g. GitHub Actions
+            # runners) on this endpoint, so a non-200 here does NOT prove the cookies
+            # are bad. Defer the real check to the Chromium browser in claim_game(),
+            # which can pass the challenge and reports login state accurately.
+            if response.headers.get("cf-mitigated") == "challenge":
+                print("Cloudflare challenge on validation endpoint; deferring login check to browser.")
                 return True
         except Exception as e:
             print(f"Cookie validation error: {e}")
