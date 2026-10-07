@@ -14,49 +14,46 @@ async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: s
         purchase_url = f"https://store.epicgames.com/purchase?highlightColor=0078f2&lang=en-US&offers=1-{namespace}-{offer_id}--&showNavigation=true"
         
         try:
-            await page.goto(purchase_url, wait_until="networkidle", timeout=60000)
-            
-            # Check if already owned
-            try:
-                owned_text = page.locator("text=You already own this")
-                if await owned_text.count() > 0:
-                    updated_cookies = await context.cookies()
-                    return updated_cookies, "already_owned"
-            except Exception:
-                pass
-            
-            # Check for Place Order button
-            try:
-                place_order_btn = page.locator('button[data-testid="place-order-btn"]')
-                if await place_order_btn.count() == 0:
-                    place_order_btn = page.locator('button:has-text("Place Order")')
-                
-                if await place_order_btn.count() > 0:
-                    await place_order_btn.first.click(timeout=10000)
-            except Exception as e:
-                print(f"Could not find or click Place Order button: {e}")
-                # Check if it was a captcha or already owned before failing
-                if await page.locator(".h-captcha").count() > 0 or await page.locator("iframe[src*='hcaptcha']").count() > 0:
-                    updated_cookies = await context.cookies()
-                    return updated_cookies, "needs_captcha"
-                updated_cookies = await context.cookies()
-                return updated_cookies, "failed"
+            # The purchase page is a heavy SPA (analytics, streaming connections);
+            # "networkidle" often never fires. Load DOM then poll for known states.
+            await page.goto(purchase_url, wait_until="domcontentloaded", timeout=60000)
 
-            # Wait for either receipt or hcaptcha
-            for _ in range(30):
+            clicked = False
+            for _ in range(60):
                 await asyncio.sleep(1)
-                
+
                 # Check for captcha
                 if await page.locator(".h-captcha").count() > 0 or await page.locator("iframe[src*='hcaptcha']").count() > 0:
                     updated_cookies = await context.cookies()
                     return updated_cookies, "needs_captcha"
-                
+
                 # Check for success
                 if "receipt" in page.url or await page.locator('[data-testid="receipt"]').count() > 0:
                     updated_cookies = await context.cookies()
                     return updated_cookies, "success"
-                    
-            # Timeout
+
+                # Check if already owned
+                try:
+                    if await page.locator("text=You already own this").count() > 0:
+                        updated_cookies = await context.cookies()
+                        return updated_cookies, "already_owned"
+                except Exception:
+                    pass
+
+                # Click Place Order once it appears
+                if not clicked:
+                    try:
+                        place_order_btn = page.locator('button[data-testid="place-order-btn"]')
+                        if await place_order_btn.count() == 0:
+                            place_order_btn = page.locator('button:has-text("Place Order")')
+                        if await place_order_btn.count() > 0:
+                            await place_order_btn.first.click(timeout=5000)
+                            clicked = True
+                    except Exception:
+                        pass
+
+            # Timeout waiting for a recognizable state
+            print(f"Timed out waiting for order state on {slug}; url={page.url}")
             updated_cookies = await context.cookies()
             return updated_cookies, "failed"
             
