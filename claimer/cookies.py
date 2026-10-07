@@ -9,6 +9,10 @@ def load_cookies() -> list[dict]:
     try:
         cookies = json.loads(cookies_json)
         if isinstance(cookies, list):
+            # Playwright's add_cookies requires a url or a domain/path pair
+            for c in cookies:
+                if isinstance(c, dict) and c.get("domain") and not c.get("path"):
+                    c["path"] = "/"
             return cookies
     except json.JSONDecodeError:
         pass
