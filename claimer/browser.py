@@ -77,6 +77,10 @@ async def claim_game(cookies: list[dict], namespace: str, offer_id: str, slug: s
                         place_order_btn = page.locator('button[data-testid="place-order-btn"]')
                         if await place_order_btn.count() == 0:
                             place_order_btn = page.locator('button:has-text("Place Order")')
+                        if await place_order_btn.count() == 0:
+                            # Free games may label the button "Add to library"
+                            # instead of "Place Order"
+                            place_order_btn = page.locator('button:has-text("Add to library")')
                         if await place_order_btn.count() > 0:
                             await place_order_btn.first.click(timeout=5000)
                             clicked = True
